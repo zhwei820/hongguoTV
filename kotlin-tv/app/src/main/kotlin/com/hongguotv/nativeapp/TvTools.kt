@@ -15,10 +15,7 @@ import android.view.View
 import android.widget.*
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
-import com.hongguotv.core.BackupData
 import com.hongguotv.core.EpisodeTarget
-import com.hongguotv.core.LibraryTransferServer
-import com.hongguotv.core.PhoneSearchServer
 import java.net.Inet4Address
 import java.util.concurrent.Executors
 
@@ -30,7 +27,6 @@ class TvTools(private val activity: Activity) {
     val showing: Boolean
         get() = dialog?.isShowing == true
 
-    private var phone: java.io.Closeable? = null
 
     private fun dp(value: Int) = (value * activity.resources.displayMetrics.density).toInt()
 
@@ -52,14 +48,10 @@ class TvTools(private val activity: Activity) {
         TouchUi.install(next)
         val previous = dialog
         dialog = null
-        phone?.close()
-        phone = null
         previous?.dismiss()
         dialog = next
         next.setOnDismissListener {
             if (dialog === next) {
-                phone?.close()
-                phone = null
                 dialog = null
                 if (anchor?.isAttachedToWindow == true) anchor.requestFocus()
             }
@@ -83,16 +75,8 @@ class TvTools(private val activity: Activity) {
         next.window?.setDimAmount(.6f)
     }
 
-    internal fun dispatchPhoneKey(event: android.view.KeyEvent): Boolean {
-        val modal = dialog?.takeIf { it.isShowing } ?: return false
-        modal.dispatchKeyEvent(event)
-        return true
-    }
-
     fun close() {
         dialog?.dismiss()
-        phone?.close()
-        phone = null
     }
 
     fun destroy() {
@@ -398,247 +382,4 @@ class TvTools(private val activity: Activity) {
         buttons.first().requestFocus()
     }
 
-    private fun qr(url: String) =
-        ImageView(activity).apply {
-            val bits = QRCodeWriter().encode(url, BarcodeFormat.QR_CODE, 360, 360)
-            val pixels =
-                IntArray(360 * 360) { i ->
-                    if (bits[i % 360, i / 360]) Color.BLACK else Color.WHITE
-                }
-            setImageBitmap(Bitmap.createBitmap(pixels, 360, 360, Bitmap.Config.ARGB_8888))
-            contentDescription = "二维码"
-        }
-
-    fun phoneConsole(url: String, anchor: View?, disconnect: () -> Unit) {
-        val content = column()
-        val row = LinearLayout(activity).apply { gravity = Gravity.CENTER_VERTICAL }
-        row.addView(qr(url), LinearLayout.LayoutParams(dp(185), dp(185)))
-        row.addView(label("手机与电视连接同一局域网，扫码后用浏览器打开。\n可以搜索剧名、遥控播放、管理片单。\n关闭此窗口后仍可控制，播放中也能使用。\n电视退出应用后连接失效；请勿分享二维码。", 16f), LinearLayout.LayoutParams(0, -2, 1f))
-        content.addView(row)
-        content.addView(label(url, 12f))
-        open(AlertDialog.Builder(activity).setTitle("手机扫码控制")
-            .setView(content).setPositiveButton("继续看电视", null)
-            .setNegativeButton("断开所有手机") { _, _ -> disconnect() }.create(), anchor)
-    }
-
-    fun phoneInput(
-        anchor: View?,
-        inputTitle: String = "手机输入剧名",
-        pageTitle: String = "在电视上搜索",
-        pagePrompt: String = "输入剧名，电视会搜索全部短剧和漫剧。",
-        inputPlaceholder: String = "输入剧名或关键词",
-        extraFieldLabel: String? = null,
-        extraFieldPlaceholder: String? = null,
-        submit: (String?, String?) -> Unit,
-    ) {
-        val addresses =
-            runCatching {
-                    LanInputAddresses.find(
-                        NetworkCompat.manager(activity)
-                    )
-                }
-                .getOrDefault(emptyList())
-        if (addresses.isEmpty()) {
-            info("手机输入", "未找到可用的 Wi-Fi 或网线局域网地址。请检查电视网络；手机和电视需要在可互通的局域网内。", anchor)
-            return
-        }
-        showPhoneInput(
-            anchor, addresses, 0,
-            inputTitle, pageTitle, pagePrompt, inputPlaceholder,
-            extraFieldLabel, extraFieldPlaceholder, submit,
-        )
-    }
-
-    private fun showPhoneInput(
-        anchor: View?,
-        addresses: List<LanInputAddress>,
-        index: Int,
-        inputTitle: String,
-        pageTitle: String,
-        pagePrompt: String,
-        inputPlaceholder: String,
-        extraFieldLabel: String?,
-        extraFieldPlaceholder: String?,
-        submit: (String?, String?) -> Unit,
-    ) {
-        val selected = addresses[index]
-        val content = column()
-        val status = label("正在开启手机输入…")
-        content.addView(status)
-        val builder =
-            AlertDialog.Builder(activity)
-                .setTitle(inputTitle)
-                .setView(content)
-                .setNegativeButton("关闭", null)
-                .setPositiveButton("连接帮助", null)
-        if (addresses.size > 1) builder.setNeutralButton("切换地址", null)
-        val next = builder.create()
-        open(next, anchor)
-        next.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            val message =
-                "请依次检查：\n1. 用手机浏览器打开二维码地址；扫码软件内打不开时，选择在浏览器打开。\n2. 手机不要只用移动数据；手机和电视需处于可互通的局域网。\n3. 访客 Wi-Fi、路由器设备隔离、VPN 可能阻断连接。\n4. 多个网络可尝试切换地址；电脑模拟器的内部地址通常无法被手机访问。\n\n返回时会重新生成二维码，旧地址随窗口关闭失效。"
-            val help =
-                AlertDialog.Builder(activity)
-                    .setTitle("手机连接不上")
-                    .setMessage(message)
-                    .setPositiveButton("重新生成二维码") { _, _ ->
-                        showPhoneInput(
-                            anchor, addresses, index,
-                            inputTitle, pageTitle, pagePrompt, inputPlaceholder,
-                            extraFieldLabel, extraFieldPlaceholder, submit,
-                        )
-                    }
-                    .setNegativeButton("关闭", null)
-                    .create()
-            open(help, anchor)
-        }
-        if (addresses.size > 1)
-            next.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                choose(
-                    "选择电视网络地址",
-                    addresses.map { "${it.label} · ${it.address}" },
-                    anchor,
-                    { chosen ->
-                        showPhoneInput(
-                            anchor, addresses, chosen,
-                            inputTitle, pageTitle, pagePrompt, inputPlaceholder,
-                            extraFieldLabel, extraFieldPlaceholder, submit,
-                        )
-                    },
-                )
-            }
-                worker.execute {
-            try {
-                val session =
-                    PhoneSearchServer(
-                        selected.address,
-                        { query, extra ->
-                            main.post {
-                                if (dialog === next) {
-                                    next.dismiss()
-                                    submit(query, extra)
-                                }
-                            }
-                        },
-                        { main.post { if (dialog === next) status.text = "二维码已过期，请关闭后重新打开。" } },
-                        onConnected = {
-                            main.post { if (dialog === next) status.text = "手机已连接，请在手机上输入并发送。" }
-                        },
-                        pageTitle = pageTitle,
-                        pagePrompt = pagePrompt,
-                        inputPlaceholder = inputPlaceholder,
-                        extraFieldLabel = extraFieldLabel,
-                        extraFieldPlaceholder = extraFieldPlaceholder,
-                    )
-                main.post {
-                    if (dialog !== next) {
-                        session.close()
-                        return@post
-                    }
-                    phone = session
-                    content.removeAllViews()
-                    val row = LinearLayout(activity).apply { gravity = Gravity.CENTER_VERTICAL }
-                    row.addView(qr(session.url), LinearLayout.LayoutParams(dp(185), dp(185)))
-                    val instructions = column()
-                    instructions.addView(
-                        label(
-                            "${selected.label} · ${selected.address}\n手机扫码后，用浏览器打开并提交。\n需要同一局域网；二维码有效 5 分钟。",
-                            16f,
-                        )
-                    )
-                    instructions.addView(label(session.url, 12f))
-                    row.addView(instructions, LinearLayout.LayoutParams(0, -2, 1f))
-                    content.addView(row)
-                    status.text = "等待手机连接…"
-                    content.addView(status)
-                }
-            } catch (_: Exception) {
-                main.post { if (dialog === next) status.text = "此地址无法开启手机输入，请关闭重试，或切换其他网络地址。" }
-            }
-        }
-    }
-
-    fun libraryTransfer(backup: String, anchor: View?, restore: (BackupData, Boolean) -> Unit) {
-        val address = NetworkCompat.lanAddress(NetworkCompat.manager(activity))
-        if (address == null) {
-            info("备份与恢复", "请让电视和手机连接同一局域网后重试。", anchor)
-            return
-        }
-        val content = column()
-        val status = label("正在生成二维码…")
-        content.addView(status)
-        val next =
-            AlertDialog.Builder(activity)
-                .setTitle("手机备份与恢复")
-                .setView(ScrollView(activity).apply { addView(content) })
-                .setNegativeButton("关闭", null)
-                .create()
-        open(next, anchor)
-        worker.execute {
-            try {
-                val session =
-                    LibraryTransferServer(
-                        address,
-                        backup,
-                        { data ->
-                            main.post {
-                                if (dialog !== next) return@post
-                                next.dismiss()
-                                val preview = column()
-                                preview.addView(
-                                    label(
-                                        "备份含 ${data.favorites.size} 部收藏、${data.history.size} 条观看记录、${data.searches.size} 条搜索、${data.later.size} 部稍后看、${data.hidden.size} 部已隐藏推荐。\n\n收藏合并，观看位置以较新的记录为准；已有收藏优先保留（最多 500 部），历史保留最近 200 条。",
-                                        16f,
-                                    )
-                                )
-                                val settings =
-                                    CheckBox(activity).apply {
-                                        text = "同时恢复播放设置和内容分类"
-                                        isChecked = false
-                                    }
-                                preview.addView(settings)
-                                val confirm =
-                                    AlertDialog.Builder(activity)
-                                        .setTitle("确认恢复本机记录")
-                                        .setView(ScrollView(activity).apply { addView(preview) })
-                                        .setNegativeButton("取消", null)
-                                        .setPositiveButton("合并恢复") { _, _ ->
-                                            restore(data, settings.isChecked)
-                                        }
-                                        .create()
-                                open(confirm, anchor)
-                                confirm.getButton(AlertDialog.BUTTON_NEGATIVE).requestFocus()
-                            }
-                        },
-                        {
-                            main.post {
-                                if (dialog === next) {
-                                    content.removeAllViews()
-                                    content.addView(label("二维码已过期，请关闭后重新打开。"))
-                                }
-                            }
-                        },
-                    )
-                main.post {
-                    if (dialog !== next) {
-                        session.close()
-                        return@post
-                    }
-                    phone = session
-                    content.removeAllViews()
-                    val row = LinearLayout(activity).apply { gravity = Gravity.CENTER_VERTICAL }
-                    row.addView(qr(session.url), LinearLayout.LayoutParams(dp(185), dp(185)))
-                    val instructions = column()
-                    instructions.addView(
-                        label("手机扫码，用浏览器下载备份或选择备份文件恢复。\n仅限同一局域网；关闭即失效，最长 5 分钟。恢复需在电视确认。", 16f)
-                    )
-                    instructions.addView(label(session.url, 12f))
-                    row.addView(instructions, LinearLayout.LayoutParams(0, -2, 1f))
-                    content.addView(row)
-                }
-            } catch (_: Exception) {
-                main.post { if (dialog === next) status.text = "无法开启备份传输，请检查网络后重试。" }
-            }
-        }
-    }
 }

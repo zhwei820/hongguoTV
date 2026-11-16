@@ -26,10 +26,6 @@ class BrandResourcesTest {
         assertTrue("Expected transparent RGBA BitmapDrawable without opaque AdaptiveIconDrawable backdrop", icon is BitmapDrawable)
         assertEquals(80, icon.intrinsicWidth)
         assertEquals(80, icon.intrinsicHeight)
-        val banner = app.resources.getDrawable(info.banner, app.theme)
-        assertTrue(banner is BitmapDrawable)
-        assertEquals(160, banner.intrinsicWidth)
-        assertEquals(90, banner.intrinsicHeight)
         for (size in listOf(24, 48, 160)) {
             val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
             icon.setBounds(0, 0, size, size)

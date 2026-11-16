@@ -23,7 +23,6 @@ class LivePlaybackInstrumentation : Instrumentation() {
             val current = startActivitySync(Intent(targetContext, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
             activity = current
-            runOnMainSync { check(!(field("cloudAccount").get(current) as AccountController).signedIn) }
             val repo = field("repository").get(current) as ContentRepository
             val play = MainActivity::class.java.getDeclaredMethod("playEpisode", Int::class.javaPrimitiveType,
                 Long::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType,

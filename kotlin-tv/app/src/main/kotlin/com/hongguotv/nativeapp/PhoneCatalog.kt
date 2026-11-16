@@ -40,19 +40,16 @@ internal class PhoneCatalog(
     private val cover: (ImageView, String) -> Unit,
     private val open: (Series) -> Unit,
     private val resume: (Series) -> Unit,
-    private val feed: () -> View,
-    private val closeFeed: () -> Unit,
     private val checkUpdates: (View) -> Unit,
     private val confirm: (String, String, () -> Unit) -> Unit,
 ) : LinearLayout(activity), Closeable {
     companion object {
         const val HOME = 0
-        const val FEED = 8
         const val DISCOVER = 1
         const val RANK = 2
         const val MINE = 3
         private val destinations =
-            listOf(HOME to "首页", FEED to "随心看", DISCOVER to "找剧", RANK to "排行", MINE to "我的")
+            listOf(HOME to "首页", DISCOVER to "找剧", RANK to "排行", MINE to "我的")
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -139,7 +136,6 @@ internal class PhoneCatalog(
             pages[index]?.top()
             return
         }
-        if (tab == FEED && index != FEED) closeFeed()
         tab = index
         destinations.forEach { (i, _) ->
             val selected = i == index
@@ -154,11 +150,6 @@ internal class PhoneCatalog(
             }
         }
         content.removeAllViews()
-        topBar.visibility = if (index == FEED) GONE else VISIBLE
-        if (index == FEED) {
-            content.addView(feed(), FrameLayout.LayoutParams(-1, -1))
-            return
-        }
         val page =
             pages.getOrPut(index) {
                 when (index) {
@@ -175,12 +166,6 @@ internal class PhoneCatalog(
     /** 重新挂到窗口时调用：刷新本机数据，并补回被页面切换取消的封面加载。 */
     fun reattach() {
         if (closed) return
-        if (tab == FEED && search == null) {
-            // 离开列表页时宿主已关闭随心看播放器，回来需要重建。
-            content.removeAllViews()
-            content.addView(feed(), FrameLayout.LayoutParams(-1, -1))
-            return
-        }
         search?.grid?.refreshCards()
         pages[tab]?.shown()
     }
@@ -241,7 +226,6 @@ internal class PhoneCatalog(
     override fun close() {
         if (closed) return
         closed = true
-        if (tab == FEED) closeFeed()
         search?.close()
         pages.values.forEach { it.close() }
         worker.shutdownNow()
