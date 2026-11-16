@@ -102,17 +102,17 @@ internal class DiscoveryScreen(
                 resetHeaderOffset()
             }
         }
-        browser.onTouchScrolled = { atTop ->
-            val offset =
-                if (atTop || !state.expanded) 0
-                else getChildAt(0).height + scroll.height + summary.height
-            if (headerOffset != offset) {
-                headerOffset = offset
-                state.headerOffset = offset
-                if (offset == 0 && scrollY != 0) scrollTo(0, 0)
-                requestLayout()
+        // 手机横屏下筛选头占去大半屏，网格只露一行；触屏滑动时整体收起或展开筛选头。
+        browser.onTouchScrolled = { atTop -> touchHeader(hidden = !atTop) }
+        scroll.setOnTouchListener(
+            verticalSwipe { up -> if (up && !scroll.canScrollVertically(1)) touchHeader(hidden = true) }
+        )
+        browser.grid.setOnTouchListener(
+            verticalSwipe { up ->
+                if (up) touchHeader(hidden = true)
+                else if (!browser.grid.canScrollVertically(-1)) touchHeader(hidden = false)
             }
-        }
+        )
         browser.useRemoteNavigation()
         addView(browser, LayoutParams(-1, 0, 1f))
         addView(emptyState, LayoutParams(-1, 0, 1f))
@@ -152,6 +152,38 @@ internal class DiscoveryScreen(
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         super.onLayout(changed, l, t, r, b + headerOffset)
         scrollTo(0, headerOffset)
+    }
+
+    private fun touchHeader(hidden: Boolean) {
+        val offset =
+            if (!hidden || !state.expanded) 0
+            else getChildAt(0).height + scroll.height + summary.height
+        if (headerOffset == offset) return
+        headerOffset = offset
+        state.headerOffset = offset
+        if (offset == 0 && scrollY != 0) scrollTo(0, 0)
+        requestLayout()
+    }
+
+    /** 只观察不消费：一次按下最多回调一次，参数为是否向上滑。 */
+    private fun verticalSwipe(onSwipe: (Boolean) -> Unit): View.OnTouchListener {
+        val slop = android.view.ViewConfiguration.get(context).scaledTouchSlop * 2
+        var startY = 0f
+        var fired = false
+        return View.OnTouchListener { _, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    startY = event.rawY
+                    fired = false
+                }
+                android.view.MotionEvent.ACTION_MOVE ->
+                    if (!fired && kotlin.math.abs(event.rawY - startY) > slop) {
+                        fired = true
+                        onSwipe(event.rawY < startY)
+                    }
+            }
+            false
+        }
     }
 
     private fun resetHeaderOffset() {
