@@ -23,6 +23,7 @@ import com.hongguotv.core.DiscoveryCursor
 import com.hongguotv.core.DiscoveryFilter
 import com.hongguotv.core.DiscoveryGroup
 import com.hongguotv.core.DiscoverySelection
+import com.hongguotv.core.EpisodeSummary
 import com.hongguotv.core.RankBoard
 import com.hongguotv.core.RankPosition
 import com.hongguotv.core.Series
@@ -279,6 +280,21 @@ internal class PhoneCatalog(
             setPadding(0, dp(12), 0, dp(6))
         }
 
+    /** 总集数取剧目角标里的「全/共 N 集」，收藏过的剧再参考检查更新时记下的集数；都没有时只显示进度。 */
+    private fun watchedLabel(progress: WatchProgress): String {
+        val total =
+            maxOf(
+                EpisodeSummary.total(progress.series.badge),
+                library.favoriteUpdate(progress.series.id)?.total ?: 0,
+            )
+        val current = progress.episodeIndex + 1
+        return when {
+            progress.completed && total > 0 && current >= total -> "已看完 · 共 $total 集"
+            total > 0 -> "第 $current / $total 集"
+            else -> "看到第 $current 集"
+        }
+    }
+
     private fun failure(problem: Throwable): String =
         when (problem) {
             is java.net.UnknownHostException -> "无法连接内容网站，点此重试"
@@ -430,7 +446,7 @@ internal class PhoneCatalog(
                             )
                             addView(
                                 TextView(activity).apply {
-                                    text = "看到第 ${progress.episodeIndex + 1} 集"
+                                    text = watchedLabel(progress)
                                     textSize = 11f
                                     setTextColor(TvStyle.muted)
                                 },
@@ -438,7 +454,10 @@ internal class PhoneCatalog(
                             if (progress.series.cover.isNotEmpty()) cover(image, progress.series.cover)
                             setOnClickListener { resume(progress.series) }
                             setOnLongClickListener {
-                                open(progress.series)
+                                confirm("移除接着看", "从观看记录中移除「${progress.series.title}」？") {
+                                    library.removeHistory(progress.series.id)
+                                    renderResume()
+                                }
                                 true
                             }
                         }
@@ -627,7 +646,7 @@ internal class PhoneCatalog(
                 val history = library.history()
                 val episodes = history.associate { it.series.id to it }
                 grid.subtitle = { item ->
-                    episodes[item.id]?.let { if (it.completed) "已看完" else "看到第 ${it.episodeIndex + 1} 集" }
+                    episodes[item.id]?.let(::watchedLabel)
                         .orEmpty()
                 }
                 grid.items = history.map { it.series }

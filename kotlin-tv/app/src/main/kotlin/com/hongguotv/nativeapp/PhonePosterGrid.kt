@@ -153,8 +153,8 @@ internal class PhonePosterGrid(
             val mark = corner(item)
             badge.text = mark.orEmpty()
             badge.visibility = if (mark.isNullOrEmpty()) GONE else VISIBLE
-            image.setImageDrawable(null)
-            if (item.cover.isNotEmpty()) cover(image, item.cover)
+            // 同一地址重复绑定时加载器认为已显示、不会重绘，这里不能先清空；换地址或空地址由加载器清空旧图。
+            cover(image, item.cover)
         }
     }
 
