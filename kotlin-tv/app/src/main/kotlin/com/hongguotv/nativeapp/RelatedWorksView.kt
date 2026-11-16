@@ -210,7 +210,7 @@ internal class RelatedWorksView(
             cell.nextFocusDownId = cells.getOrNull(i + 4)?.id ?: cell.id
         }
         panel.addView(ScrollView(context).apply { addView(grid) }, LayoutParams(-1, 0, 1f))
-        val dialog = AlertDialog.Builder(context).setView(panel).create()
+        val dialog = AlertDialog.Builder(context).setView(panel).create().also { TouchUi.install(it) }
         allDialog = dialog
         dialog.setOnDismissListener {
             if (allDialog === dialog) allDialog = null

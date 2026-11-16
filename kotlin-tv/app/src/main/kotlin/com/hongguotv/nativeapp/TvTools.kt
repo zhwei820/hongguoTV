@@ -49,6 +49,7 @@ class TvTools(private val activity: Activity) {
         }
 
     private fun open(next: AlertDialog, anchor: View?) {
+        TouchUi.install(next)
         val previous = dialog
         dialog = null
         phone?.close()

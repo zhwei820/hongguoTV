@@ -182,6 +182,7 @@ class AppUpdater(
                 .setPositiveButton("检查更新", null)
                 .create()
         dialog = next
+        TouchUi.install(next)
         next.setOnDismissListener {
             if (dialog === next) {
                 dialog = null

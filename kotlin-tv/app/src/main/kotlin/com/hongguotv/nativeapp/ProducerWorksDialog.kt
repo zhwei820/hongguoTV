@@ -47,7 +47,7 @@ internal class ProducerWorksDialog(
             addView(ScrollView(activity).apply { addView(list) }, LinearLayout.LayoutParams(-1, 0, 1f))
             addView(more)
         }
-        dialog = AlertDialog.Builder(activity).setView(panel).create()
+        dialog = AlertDialog.Builder(activity).setView(panel).create().also { TouchUi.install(it) }
         dialog.setOnDismissListener {
             closed = true
             scope.cancel()

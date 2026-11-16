@@ -321,6 +321,7 @@ internal class HomeFeedScreen(
             hero.background = TvStyle.card(activity, focused)
         }
         stage.setOnClickListener { toggle() }
+        stage.setOnTouchListener(TouchUi.gestures(activity, onTap = { toggle() }, onSwipe = { move(it) }, onLongPress = { showActions() }))
         hero.setOnClickListener { toggle() }
         stage.setOnKeyListener { _, key, event ->
             when (key) {

@@ -446,7 +446,7 @@ class AccountController(private val activity: Activity, private val play: (Cloud
 
     private fun showDialog(builder: AlertDialog.Builder) {
         dialog?.dismiss()
-        dialog = builder.create()
+        dialog = builder.create().also { TouchUi.install(it) }
         dialog?.show()
     }
 
@@ -635,7 +635,7 @@ class AccountController(private val activity: Activity, private val play: (Cloud
                 .setNegativeButton("取消", null)
                 .setOnDismissListener { stopCountdown() }
                 .create()
-                .also { phoneDialog = it; it.show() }
+                .also { phoneDialog = it; TouchUi.install(it); it.show() }
 
         phoneDialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
             if (requestInFlight) return@setOnClickListener
@@ -851,6 +851,7 @@ class AccountController(private val activity: Activity, private val play: (Cloud
                 .setView(column)
                 .setNegativeButton("取消", null)
                 .create()
+        TouchUi.install(picker)
         picker.show()
     }
 

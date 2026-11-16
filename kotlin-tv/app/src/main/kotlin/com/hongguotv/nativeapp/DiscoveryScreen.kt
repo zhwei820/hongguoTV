@@ -390,7 +390,7 @@ internal class DiscoveryScreen(
             cell.nextFocusDownId = cells.getOrNull(index + 4)?.id ?: cell.id
         }
         panel.addView(ScrollView(context).apply { addView(grid) }, LayoutParams(-1, -2))
-        val dialog = AlertDialog.Builder(context).setView(panel).create()
+        val dialog = AlertDialog.Builder(context).setView(panel).create().also { TouchUi.install(it) }
         filterDialog = dialog
         dialog.setOnDismissListener {
             if (filterDialog === dialog) filterDialog = null

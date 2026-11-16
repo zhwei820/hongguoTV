@@ -27,6 +27,8 @@ class TvSocial(
     private val worker = Executors.newFixedThreadPool(2)
     private val timed = TimedComments()
     private val prefs = activity.getSharedPreferences("social", 0)
+    // 字号循环 20/24/28/32；手机横屏高度只有电视约 2/3，默认取小一档。
+    private val defaultFont = if (TouchUi.enabled(activity)) 20 else 24
     private var active = false
     private var key: Pair<String, String>? = null
     private var scope: RequestScope? = null
@@ -164,7 +166,7 @@ class TvSocial(
         }
 
     fun settings(anchor: View) {
-        val d = Dialog(activity)
+        val d = Dialog(activity).also { TouchUi.install(it) }
         d.requestWindowFeature(Window.FEATURE_NO_TITLE)
         val body =
             LinearLayout(activity).apply {
@@ -210,8 +212,8 @@ class TvSocial(
         option({ "弹幕：${if(prefs.getBoolean("enabled",true)) "开" else "关"}" }) {
             prefs.edit().putBoolean("enabled", !prefs.getBoolean("enabled", true)).apply()
         }
-        option({ "字号：${prefs.getInt("font",24)}" }) {
-            val n = prefs.getInt("font", 24)
+        option({ "字号：${prefs.getInt("font", defaultFont)}" }) {
+            val n = prefs.getInt("font", defaultFont)
             prefs.edit().putInt("font", if (n >= 32) 20 else n + 4).apply()
         }
         option({
@@ -283,7 +285,7 @@ class TvSocial(
         // The timed read belongs to the old generation as well.
         scope?.cancel()
         loading = false
-        val d = Dialog(activity)
+        val d = Dialog(activity).also { TouchUi.install(it) }
         dialog = d
         d.requestWindowFeature(Window.FEATURE_NO_TITLE)
         var cursor = ""
@@ -492,7 +494,7 @@ class TvSocial(
 
         fun setRows(values: List<JSONObject>) {
             val travel = prefs.getInt("travel", 12000)
-            val textSize = dp(prefs.getInt("font", 24))
+            val textSize = dp(prefs.getInt("font", defaultFont))
             val configured = prefs.getInt("lanes", 0)
             val lanes =
                 if (configured > 0) configured
@@ -526,7 +528,7 @@ class TvSocial(
             if (!active || !prefs.getBoolean("enabled", true)) return
             val now = p.currentPosition
             val travel = prefs.getInt("travel", 12000).coerceAtLeast(1)
-            paint.textSize = dp(prefs.getInt("font", 24)).toFloat()
+            paint.textSize = dp(prefs.getInt("font", defaultFont)).toFloat()
             val alpha = (prefs.getInt("alpha", 85).coerceIn(20, 100) * 255 / 100)
             val lineHeight = (paint.textSize + dp(12)).toInt()
             val top = areaTop()

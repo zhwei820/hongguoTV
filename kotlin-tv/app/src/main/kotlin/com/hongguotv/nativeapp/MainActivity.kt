@@ -587,6 +587,7 @@ class MainActivity : Activity() {
     // 启动入口：创建根容器，初始化账户、更新和媒体控制，再异步读取本机记录。
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        TouchUi.install(window)
         TvStyle.load(this)
         ContentRepository.deviceStore = PreferencesPlayerDeviceStore(
             getSharedPreferences("native-player-device", MODE_PRIVATE)
@@ -3079,6 +3080,19 @@ class MainActivity : Activity() {
                     setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
                 }
             playerView = view
+            view.setOnTouchListener(
+                TouchUi.gestures(
+                    this,
+                    onTap = { if (panel || playError) hidePlaybackOverlay() else showPanel() },
+                    onDoubleTap = { x ->
+                        when {
+                            x < .33f -> seek(-1, 0)
+                            x > .67f -> seek(1, 0)
+                            else -> togglePlayback()
+                        }
+                    },
+                )
+            )
             root.addView(view, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
             view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> applyVideoRotation() }
             view.post { if (playerView === view) applyVideoRotation() }
@@ -3139,7 +3153,12 @@ class MainActivity : Activity() {
                 }
             hud.addView(progressBar, lp(-1, dp(4)))
             hud.addView(
-                text("确认 暂停/播放    左右 快退/快进    ↓ 选集    ↑ 操作菜单    菜单 更多", 13f, Color.LTGRAY).apply {
+                text(
+                    if (TouchUi.enabled(this)) "轻点 操作菜单    双击中间 暂停/播放    双击左右 快退/快进"
+                    else "确认 暂停/播放    左右 快退/快进    ↓ 选集    ↑ 操作菜单    菜单 更多",
+                    13f,
+                    Color.LTGRAY,
+                ).apply {
                     setPadding(0, dp(12), 0, 0)
                 }
             )
@@ -4087,6 +4106,7 @@ class MainActivity : Activity() {
                 .setNeutralButton("测试连接", null)
                 .setNegativeButton("取消", null)
                 .create()
+        TouchUi.install(dialog)
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val normalized = RelayClient.normalizeHost(hostInput.text.toString())

@@ -23,7 +23,7 @@ class EpisodePanel(
     private val lastWatched: Int? = null,
     private val lastCompleted: Boolean = false,
 ) {
-    private val dialog = Dialog(activity)
+    private val dialog = Dialog(activity).also { TouchUi.install(it) }
     internal fun dispatchPhoneKey(event: android.view.KeyEvent): Boolean {
         val modal = dialog.takeIf { it.isShowing } ?: return false
         modal.dispatchKeyEvent(event)
