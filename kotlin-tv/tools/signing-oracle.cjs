@@ -1,6 +1,6 @@
 // Regenerate deterministic compatibility fixtures from the pinned upstream source.
 const fs = require('fs'); const vm = require('vm'); const path = require('path');
-const source = fs.readFileSync(path.join(__dirname,'../../server/vendor/hongguo.cjs'),'utf8');
+const source = fs.readFileSync(path.join(__dirname,'vendor/hongguo.cjs'),'utf8');
 const ctx = vm.createContext({require,Buffer,URL,URLSearchParams});
 vm.runInContext(source+`;globalThis.oracle = {branchOf,hashF13,xGorgon,helios,buildMedusa,sm3};`,ctx);
 const result=[];
