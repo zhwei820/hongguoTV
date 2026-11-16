@@ -14,7 +14,7 @@ https://github.com/charlie901208/HGTV/tree/feat/phone-login 。`DeviceRegister.k
 
 - drpys, `spider/js/红果果[短].js`
 - https://github.com/woshishiq1/drpys/tree/22261adfa31435e3b3ef5a730b8a2a75bcaf1715
-- 本仓库对照源：`../server/vendor/hongguo.cjs`，取回于 2026-09-21。
+- 本仓库对照源：`tools/vendor/hongguo.cjs`，取回于 2026-09-21。
 - 本版改动：完整 Kotlin 实现；签名只选择已验证的 hash branch 0；加密媒体通过 Media3 DataSource 直接读取；增加样本边界检查、子样本处理和 AVC 原始编码恢复。
 
 播放设备注册与 x-argus / x-ladon / Simon 签名、双模型选流是以下 GPL-3.0 源码的 Kotlin 移植（用于恢复被上游拒绝的固定设备播放路径）：
