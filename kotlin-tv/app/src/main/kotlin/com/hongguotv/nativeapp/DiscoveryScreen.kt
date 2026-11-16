@@ -102,6 +102,17 @@ internal class DiscoveryScreen(
                 resetHeaderOffset()
             }
         }
+        browser.onTouchScrolled = { atTop ->
+            val offset =
+                if (atTop || !state.expanded) 0
+                else getChildAt(0).height + scroll.height + summary.height
+            if (headerOffset != offset) {
+                headerOffset = offset
+                state.headerOffset = offset
+                if (offset == 0 && scrollY != 0) scrollTo(0, 0)
+                requestLayout()
+            }
+        }
         browser.useRemoteNavigation()
         addView(browser, LayoutParams(-1, 0, 1f))
         addView(emptyState, LayoutParams(-1, 0, 1f))

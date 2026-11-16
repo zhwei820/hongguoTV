@@ -4897,6 +4897,17 @@ class MainActivity : Activity() {
             showCatalog()
             return
         }
+        // 触屏下焦点不可见，下面「先把焦点退回导航栏」的层级在手机上表现为按返回没反应。
+        if (screen == "catalog" && root.isInTouchMode) {
+            val home = library.initialTab()
+            when {
+                tab == 7 && tvSearchPanel?.back() == true -> Unit
+                tab == 7 && query.isNotBlank() -> clearSearch()
+                tab != home -> switchTab(home)
+                else -> tvTools.confirm("退出hongguoTV", "确定退出？", currentFocus) { finish() }
+            }
+            return
+        }
         // Navigation is the outermost level on every page, including the scan action.
         if (screen == "catalog" && catalogShell?.hasNavigationFocus == true) {
             tvTools.confirm("退出hongguoTV", "确定退出？", currentFocus) { finish() }

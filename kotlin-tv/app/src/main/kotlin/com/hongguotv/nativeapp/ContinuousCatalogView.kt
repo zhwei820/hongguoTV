@@ -189,6 +189,11 @@ internal class ContinuousCatalogView(
             object : AbsListView.OnScrollListener {
                 override fun onScrollStateChanged(view: AbsListView?, state: Int) {
                     if (state != AbsListView.OnScrollListener.SCROLL_STATE_IDLE) navigating = true
+                    else if (grid.isInTouchMode)
+                        onTouchScrolled?.invoke(
+                            grid.firstVisiblePosition == 0 &&
+                                (grid.getChildAt(0)?.top ?: 0) >= grid.paddingTop
+                        )
                 }
 
                 override fun onScroll(view: AbsListView?, first: Int, count: Int, total: Int) {
@@ -271,6 +276,9 @@ internal class ContinuousCatalogView(
         top.textSize = 16f
         useRemoteNavigation()
     }
+
+    /** 触屏滑动停下时回调，参数为是否已回到顶部；焦点驱动的 onBrowsePosition 在触屏下不会触发。 */
+    var onTouchScrolled: ((Boolean) -> Unit)? = null
 
     fun useRemoteNavigation() {
         remoteNavigation = true
