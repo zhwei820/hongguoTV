@@ -374,30 +374,19 @@ class MainActivity : Activity() {
         ContentRepository.deviceStore = PreferencesPlayerDeviceStore(
             getSharedPreferences("native-player-device", MODE_PRIVATE)
         )
-        window.decorView.systemUiVisibility =
-            View.SYSTEM_UI_FLAG_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         library = Library(this)
         artwork = ArtworkLoader(this)
         tvTools = TvTools(this)
         root = FrameLayout(this).apply { background = TvVisual.backdrop(this@MainActivity) }
-        // 系统状态栏已隐藏，时间常驻在页面之上的独立一栏，不压住任何页面的控件。
-        val clock = TextClock(this).apply {
-            format12Hour = "HH:mm"
-            format24Hour = "HH:mm"
-            textSize = 13f
-            setTextColor(TvStyle.text)
-            gravity = Gravity.CENTER_VERTICAL or Gravity.END
-            setPadding(0, 0, dp(16), 0)
+        // targetSdk 36 强制边到边：内容让出系统栏，系统栏下方用页面底色填充。
+        setContentView(FrameLayout(this).apply {
             setBackgroundColor(TvStyle.background)
-            isFocusable = false
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }
-        setContentView(LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(clock, LinearLayout.LayoutParams(-1, dp(22)))
-            addView(root, LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(root, FrameLayout.LayoutParams(-1, -1))
+            setOnApplyWindowInsetsListener { view, insets ->
+                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+                WindowInsets.CONSUMED
+            }
         })
         CodecCapabilities.init(this)
         CodecCapabilities.logDeviceCapabilities()
