@@ -233,7 +233,6 @@ class MainActivity : Activity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var controls: LinearLayout
     private var panel = false
-    private var playbackClock: TextClock? = null
     private var transportPlay: TextView? = null
     private var sleepButton: TextView? = null
     private var relayDialog: AlertDialog? = null
@@ -254,8 +253,7 @@ class MainActivity : Activity() {
                 if (!foreground || isDestroyed) return
                 if (screen == "player") {
                     if (sleepTimer.poll()) stopForSleep()
-                    updateClock()
-                    if (hud.visibility == View.VISIBLE || phoneOverlay?.showing == true || library.alwaysShowProgress) updatePlaybackText()
+                                if (hud.visibility == View.VISIBLE || phoneOverlay?.showing == true || library.alwaysShowProgress) updatePlaybackText()
                     maybePrefetch()
                     maybePrepareSeason()
                     updateSeasonBanner()
@@ -384,7 +382,23 @@ class MainActivity : Activity() {
         artwork = ArtworkLoader(this)
         tvTools = TvTools(this)
         root = FrameLayout(this).apply { background = TvVisual.backdrop(this@MainActivity) }
-        setContentView(root)
+        // 系统状态栏已隐藏，时间常驻在页面之上的独立一栏，不压住任何页面的控件。
+        val clock = TextClock(this).apply {
+            format12Hour = "HH:mm"
+            format24Hour = "HH:mm"
+            textSize = 13f
+            setTextColor(TvStyle.text)
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            setPadding(0, 0, dp(16), 0)
+            setBackgroundColor(TvStyle.background)
+            isFocusable = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        setContentView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(clock, LinearLayout.LayoutParams(-1, dp(22)))
+            addView(root, LinearLayout.LayoutParams(-1, 0, 1f))
+        })
         CodecCapabilities.init(this)
         CodecCapabilities.logDeviceCapabilities()
         updater =
@@ -743,20 +757,6 @@ class MainActivity : Activity() {
             }
             root.addView(persistentProgress, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
             social.attach(root)
-            playbackClock = TextClock(this).apply {
-                format12Hour = "HH:mm"
-                format24Hour = "HH:mm"
-                textSize = 18f
-                setTextColor(Color.WHITE)
-                setPadding(dp(10), dp(5), dp(10), dp(5))
-                background = rounded(Color.argb(150, 11, 15, 21))
-                isFocusable = false
-            }.also { clock ->
-                root.addView(clock, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
-                    topMargin = (resources.displayMetrics.heightPixels * .05f).toInt()
-                    rightMargin = dp(widthDp() * .05f)
-                })
-            }
             hud =
                 column().apply {
                     setPadding(
@@ -834,7 +834,6 @@ class MainActivity : Activity() {
         progressBar.visibility = View.VISIBLE
         main.removeCallbacks(hideHud)
         hud.visibility = if (hideAutoplayOverlay) View.GONE else View.VISIBLE
-        updateClock()
         controls.removeAllViews()
         controls.visibility = if (recoveryDisplayActive) View.VISIBLE else View.GONE
         if (recoveryDisplayActive) {
@@ -1894,7 +1893,6 @@ class MainActivity : Activity() {
         controls.clearFocus()
         hud.visibility = View.GONE
         updatePersistentProgress()
-        updateClock()
     }
 
     // 只有真正输出首帧才清除恢复原因，READY 不代表屏幕已经出画面。
@@ -1931,11 +1929,6 @@ class MainActivity : Activity() {
         addButton(controls, "返回选集") { returnToDetail(true) }
     }
 
-    private fun updateClock() {
-        playbackClock?.visibility = if (screen == "player" && library.clockMode != 0 &&
-            (library.clockMode == 2 || hud.visibility == View.VISIBLE)) View.VISIBLE else View.GONE
-    }
-
     private fun showHud() {
         if (screen != "player") return
         hideAutoplayOverlay = false
@@ -1945,7 +1938,6 @@ class MainActivity : Activity() {
             // 手机控制层负责正常播放时的操作；原底部信息区只在加载和出错时显示状态与恢复按钮。
             if (!waitingForFirstFrame && !playError && controls.visibility != View.VISIBLE) hud.visibility = View.GONE
         }
-        updateClock()
         updatePlaybackText()
         main.removeCallbacks(hideHud)
         if (player?.isPlaying == true) main.postDelayed(hideHud, if (panel) 8000 else 4500)
