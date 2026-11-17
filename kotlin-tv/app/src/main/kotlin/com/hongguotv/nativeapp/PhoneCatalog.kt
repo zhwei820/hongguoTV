@@ -533,7 +533,7 @@ internal class PhoneCatalog(
                 setTextColor(TvStyle.muted)
                 setPadding(0, dp(2), 0, dp(6))
             }
-        private var board = RankBoard.ALL
+        private var board = RankBoard.COMIC
         private var page = 0
         private val positions = mutableMapOf<String, RankPosition>()
 
@@ -582,7 +582,7 @@ internal class PhoneCatalog(
             boards.removeAllViews()
             boards.addView(
                 strip(
-                    RankBoard.entries.filter { it != RankBoard.REAL }.map { entry ->
+                    listOf(RankBoard.COMIC, RankBoard.AI).map { entry ->
                         chip(entry.label, entry == board) {
                             if (entry != board) {
                                 board = entry

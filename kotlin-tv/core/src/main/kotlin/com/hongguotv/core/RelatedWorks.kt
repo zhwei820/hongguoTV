@@ -46,13 +46,15 @@ object RelatedWorks {
         return stem.isNotBlank() && stem == stem(b.title)
     }
 
-    fun ordered(current: Series, rows: List<RelatedWork>): List<RelatedWork> = rows.sortedWith(
-        compareBy<RelatedWork> { if (stem(it.series.title) == stem(current.title)) 0 else 1 }
-            .thenBy { stem(it.series.title) }
-            .thenBy { it.seasonIndex.takeIf { n -> n > 0 }
-                ?: seasonSuffix.find(it.series.title.trim())?.groupValues?.get(1)?.let(::seasonNumber)
-                ?: 1 }
-    )
+    /** 本剧各季在前（标签为「第N季」或剧名主干相同），同 IP 等其他作品在后；组内按剧名、季号排。 */
+    fun ordered(current: Series, rows: List<RelatedWork>): List<RelatedWork> {
+        val currentStem = stem(current.title)
+        val season = { it: RelatedWork ->
+            it.seasonIndex.takeIf { n -> n > 0 } ?: seasonOf(it.season) ?: seasonOf(it.series.title) ?: 1
+        }
+        val (own, others) = rows.partition { seasonOf(it.season) != null || stem(it.series.title) == currentStem }
+        return own.sortedBy(season) + others.sortedWith(compareBy<RelatedWork> { stem(it.series.title) }.thenBy(season))
+    }
 
     /** Conservative: identical title stem, consecutive season, unique playable candidate. */
     fun nextSeason(current: Series, rows: List<RelatedWork>): RelatedWork? {

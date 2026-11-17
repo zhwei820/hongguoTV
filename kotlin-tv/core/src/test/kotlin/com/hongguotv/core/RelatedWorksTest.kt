@@ -60,6 +60,16 @@ class RelatedWorksTest {
     }
 
     @Test
+    fun seasonTaggedWorkStaysBeforeSameIpEvenWhenTitleStemDiffers() {
+        val current = Series("1", "凡人百世书")
+        val second = RelatedWork(Series("2", "凡人百世书·续"), "第2季", false, 2)
+        val ip = RelatedWork(Series("8", "百世书外传"), "同IP", false, 0)
+        val ip2 = RelatedWork(Series("9", "百世书前传"), "同IP", false, 0)
+        val self = RelatedWork(current, "", false)
+        assertEquals(listOf("1", "2", "9", "8"), RelatedWorks.ordered(current, listOf(ip, ip2, second, self)).map { it.series.id })
+    }
+
+    @Test
     fun keepsMoreThanThirtySeasonsAndSortsNumericSeasonOrder() {
         val rows = (40 downTo 1).joinToString(",") {
             """{"series_id":"${1000 + it}","title":"长剧第${it}季","content_type":1004,"episode_cnt":10,"season_index":$it}"""
