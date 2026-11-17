@@ -70,6 +70,20 @@ class RelatedWorksTest {
     }
 
     @Test
+    fun sameIpWithIdenticalTitleStemStillGoesLast() {
+        val current = Series("3", "学法律的玄学大师，很常见吗第三季")
+        val first = RelatedWork(Series("1", "学法律的玄学大师，很常见吗第一季"), "第1季", false, 1)
+        val second = RelatedWork(Series("2", "学法律的玄学大师，很常见吗第二季"), "第2季", false, 2)
+        val ip = RelatedWork(Series("8", "学法律的玄学大师，很常见吗"), "同IP", false, 0)
+        val ip2 = RelatedWork(Series("9", "学法律的玄学大师很常见吗？"), "同IP", false, 0)
+        val self = RelatedWork(current, "", false)
+        assertEquals(
+            listOf("1", "2", "3"),
+            RelatedWorks.ordered(current, listOf(ip, first, ip2, self, second)).map { it.series.id }.take(3),
+        )
+    }
+
+    @Test
     fun keepsMoreThanThirtySeasonsAndSortsNumericSeasonOrder() {
         val rows = (40 downTo 1).joinToString(",") {
             """{"series_id":"${1000 + it}","title":"长剧第${it}季","content_type":1004,"episode_cnt":10,"season_index":$it}"""

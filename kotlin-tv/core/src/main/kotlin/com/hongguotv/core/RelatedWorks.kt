@@ -46,13 +46,18 @@ object RelatedWorks {
         return stem.isNotBlank() && stem == stem(b.title)
     }
 
-    /** 本剧各季在前（标签为「第N季」或剧名主干相同），同 IP 等其他作品在后；组内按剧名、季号排。 */
+    /**
+     * 本剧各季在前（标签为「第N季」，或无标签且剧名主干相同），带其他标签（如「同IP」）的作品一律在后——
+     * 同 IP 作品剧名主干常与本剧相同，不能只靠剧名判断。组内按剧名、季号排。
+     */
     fun ordered(current: Series, rows: List<RelatedWork>): List<RelatedWork> {
         val currentStem = stem(current.title)
         val season = { it: RelatedWork ->
             it.seasonIndex.takeIf { n -> n > 0 } ?: seasonOf(it.season) ?: seasonOf(it.series.title) ?: 1
         }
-        val (own, others) = rows.partition { seasonOf(it.season) != null || stem(it.series.title) == currentStem }
+        val (own, others) = rows.partition {
+            seasonOf(it.season) != null || (it.season.isBlank() && stem(it.series.title) == currentStem)
+        }
         return own.sortedBy(season) + others.sortedWith(compareBy<RelatedWork> { stem(it.series.title) }.thenBy(season))
     }
 
