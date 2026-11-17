@@ -27,7 +27,6 @@ class TvTools(private val activity: Activity) {
     val showing: Boolean
         get() = dialog?.isShowing == true
 
-
     private fun dp(value: Int) = (value * activity.resources.displayMetrics.density).toInt()
 
     private fun label(value: String, size: Float = 17f) =
@@ -280,106 +279,6 @@ class TvTools(private val activity: Activity) {
             android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
         )
         choices.getOrNull(selected.coerceAtLeast(0))?.requestFocus()
-    }
-
-    fun episodePicker(count: Int, current: Int, anchor: View?, select: (Int) -> Unit) {
-        val content = column()
-        var digits = (current + 1).toString()
-        var replace = true
-        val value = label(digits, 28f).apply { gravity = Gravity.CENTER }
-        content.addView(value)
-        val error = label("输入集数后，选择「播放此集」", 14f)
-        content.addView(error)
-        fun digit(key: String) {
-            digits = if (replace) key else (digits + key).take(6)
-            replace = false
-            value.text = digits
-            error.text = "输入集数后，选择「播放此集」"
-        }
-        fun erase() {
-            digits = if (replace) "" else digits.dropLast(1)
-            replace = false
-            value.text = digits.ifEmpty { "—" }
-        }
-        val buttons = mutableListOf<Button>()
-        listOf(
-                listOf("1", "2", "3"),
-                listOf("4", "5", "6"),
-                listOf("7", "8", "9"),
-                listOf("清空", "0", "退格"),
-            )
-            .forEach { keys ->
-                val row = LinearLayout(activity)
-                keys.forEach { key ->
-                    val button =
-                        Button(activity).apply {
-                            id = View.generateViewId()
-                            text = key
-                            setTextColor(TvStyle.text)
-                            minHeight = dp(42)
-                            backgroundTintList =
-                                android.content.res.ColorStateList(
-                                    arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
-                                    intArrayOf(TvStyle.raised, TvStyle.surface),
-                                )
-                            setOnClickListener {
-                                when (key) {
-                                    "清空" -> {
-                                        digits = ""
-                                        replace = false
-                                        value.text = "—"
-                                    }
-                                    "退格" -> erase()
-                                    else -> digit(key)
-                                }
-                            }
-                        }
-                    buttons += button
-                    row.addView(button, LinearLayout.LayoutParams(0, -2, 1f))
-                }
-                content.addView(row)
-            }
-        val next =
-            AlertDialog.Builder(activity)
-                .setTitle("跳转集数 · 1—$count")
-                .setView(ScrollView(activity).apply { addView(content) })
-                .setNegativeButton("取消", null)
-                .setPositiveButton("播放此集", null)
-                .create()
-        next.setOnKeyListener { _, key, event ->
-            when {
-                key in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> {
-                    if (event.action == KeyEvent.ACTION_DOWN)
-                        digit((key - KeyEvent.KEYCODE_0).toString())
-                    true
-                }
-                key == KeyEvent.KEYCODE_DEL -> {
-                    if (event.action == KeyEvent.ACTION_DOWN) erase()
-                    true
-                }
-                else -> false
-            }
-        }
-        open(next, anchor)
-        val locate = next.getButton(AlertDialog.BUTTON_POSITIVE)
-        val cancel = next.getButton(AlertDialog.BUTTON_NEGATIVE)
-        buttons.forEachIndexed { i, button ->
-            button.nextFocusLeftId = buttons[if (i % 3 == 0) i else i - 1].id
-            button.nextFocusRightId = buttons[if (i % 3 == 2) i else i + 1].id
-            button.nextFocusUpId = buttons[if (i < 3) i else i - 3].id
-            button.nextFocusDownId = if (i < 9) buttons[i + 3].id else locate.id
-        }
-        locate.nextFocusUpId = buttons[10].id
-        cancel.nextFocusUpId = buttons[9].id
-        next.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            val target = EpisodeTarget.parse(digits, count)
-            if (target == null) error.text = "请输入 1—$count 之间的集数"
-            else {
-                next.dismiss()
-                select(target)
-            }
-        }
-        buttons.first().requestFocus()
     }
 
 }

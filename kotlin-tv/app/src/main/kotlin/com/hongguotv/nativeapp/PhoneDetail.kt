@@ -13,6 +13,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.hongguotv.core.Detail
+import com.hongguotv.core.RelatedWork
+import com.hongguotv.core.Series
 
 /** 手机竖屏详情页：封面信息、播放与收藏、分段选集。播放逻辑由宿主提供。 */
 internal class PhoneDetail(
@@ -26,6 +28,7 @@ internal class PhoneDetail(
     private val play: () -> Unit,
     private val playEpisode: (Int) -> Unit,
     private val toggleFavorite: () -> Boolean,
+    private val openSeason: (RelatedWork) -> Unit,
 ) : LinearLayout(context) {
     private companion object {
         const val RANGE = 60
@@ -33,6 +36,7 @@ internal class PhoneDetail(
     }
 
     private val episodes = LinearLayout(context).apply { orientation = VERTICAL }
+    private val seasons = LinearLayout(context).apply { orientation = VERTICAL }
     private val ranges = LinearLayout(context)
     private var range = current / RANGE
 
@@ -126,6 +130,7 @@ internal class PhoneDetail(
             }
         actions.addView(favoriteButton, LayoutParams(dp(104), dp(44)).apply { leftMargin = dp(10) })
         body.addView(actions)
+        body.addView(seasons)
 
         body.addView(
             label("选集 · 共 ${data.episodes.size} 集", 16f, TvStyle.text, bold = true).apply {
@@ -139,6 +144,55 @@ internal class PhoneDetail(
             })
         body.addView(episodes)
         renderEpisodes()
+    }
+
+    /** 系列各季（含当前季），rows 已按季排序；没有其他季时不显示。 */
+    fun showSeasons(rows: List<RelatedWork>) {
+        seasons.removeAllViews()
+        if (rows.none { it.series.id != data.series.id }) return
+        seasons.addView(
+            label("系列作品 · ${rows.size} 部", 16f, TvStyle.text, bold = true).apply {
+                setPadding(0, dp(18), 0, dp(8))
+            }
+        )
+        val row = LinearLayout(context)
+        var currentCard: View? = null
+        rows.forEachIndexed { index, work ->
+            val current = work.series.id == data.series.id
+            val card = LinearLayout(context).apply {
+                orientation = VERTICAL
+                setPadding(dp(3), dp(3), dp(3), dp(6))
+                background =
+                    TvStyle.shape(context, TvStyle.surface, if (current) TvStyle.accent else Color.TRANSPARENT, radius = 10)
+                val image = PosterImage(context)
+                addView(image, LayoutParams(dp(88), -2))
+                if (work.series.cover.isNotEmpty()) cover(image, work.series.cover)
+                addView(
+                    label(work.season.ifBlank { work.series.title }, 13f, if (current) TvStyle.accent else TvStyle.text, bold = current).apply {
+                        maxLines = 1
+                        ellipsize = TextUtils.TruncateAt.END
+                        setPadding(dp(3), dp(5), dp(3), 0)
+                    },
+                    LayoutParams(dp(88), -2),
+                )
+                addView(
+                    label(if (current) "当前" else work.series.badge, 11f, TvStyle.muted).apply {
+                        maxLines = 1
+                        setPadding(dp(3), dp(1), dp(3), 0)
+                    },
+                    LayoutParams(dp(88), -2),
+                )
+                if (!current) setOnClickListener { openSeason(work) }
+            }
+            row.addView(card, LayoutParams(-2, -2).apply { if (index > 0) leftMargin = dp(10) })
+            if (current) currentCard = card
+        }
+        val scroll = HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(row)
+        }
+        seasons.addView(scroll)
+        currentCard?.let { card -> scroll.post { scroll.scrollTo((card.left - dp(24)).coerceAtLeast(0), 0) } }
     }
 
     private fun favoriteLabel(saved: Boolean) = if (saved) "★ 已收藏" else "☆ 收藏"

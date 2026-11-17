@@ -676,6 +676,7 @@ class MainActivity : Activity() {
         if (autoplay) sleepStopped = false
         screen = "player"
         phoneOrientation(player = true)
+        if (screenOffPlayback) ScreenOffPlaybackService.start(this, playingLabel())
         episodeIndex = selectedIndex
         group = episodeIndex / 20
         panel = false
@@ -819,6 +820,10 @@ class MainActivity : Activity() {
                             } ?: false
                         },
                         settings = { showPlaybackSettings(it) },
+                        rotate = {
+                            portraitPlayer = !portraitPlayer
+                            phoneOrientation(player = true)
+                        },
                     )
                     .also { root.addView(it, FrameLayout.LayoutParams(-1, -1)) }
         }
@@ -1436,6 +1441,8 @@ class MainActivity : Activity() {
                         true,
                     )
                     it.setHandleAudioBecomingNoisy(true)
+                    // 息屏播放时保持 CPU 与 Wi-Fi 唤醒，否则缓冲会在锁屏后停住。
+                    it.setWakeMode(C.WAKE_MODE_NETWORK)
                     it.addAnalyticsListener(playbackDriftListener(it))
                 }
             }
@@ -2259,6 +2266,7 @@ class MainActivity : Activity() {
                 "重置设备能力记录",
                 "画面旋转 ${library.videoRotation}°",
                 "常驻播放进度 ${if (library.alwaysShowProgress) "开启" else "关闭"}",
+                "息屏播放 ${if (screenOffEnabled) "开启" else "关闭"}",
             ),
             more,
             { choice ->
@@ -2276,6 +2284,10 @@ class MainActivity : Activity() {
                             }
                             7 -> showRotationPicker(more)
                             8 -> { library.alwaysShowProgress = !library.alwaysShowProgress; updatePersistentProgress() }
+                            9 -> {
+                                screenOffEnabled = !screenOffEnabled
+                                Toast.makeText(this, if (screenOffEnabled) "息屏后继续播放" else "息屏后暂停播放", Toast.LENGTH_SHORT).show()
+                            }
                             6 -> {
                                 val count = CodecCapabilities.learnedCount()
                                 CodecCapabilities.resetLearned()
@@ -2331,9 +2343,6 @@ class MainActivity : Activity() {
                 this,
                 data.episodes.size,
                 episodeIndex,
-                { current, view, located ->
-                    tvTools.episodePicker(data.episodes.size, current, view, located)
-                },
                 { selected ->
                     if (selected == episodeIndex) episodePanel?.dismiss()
                     else {
@@ -2551,9 +2560,23 @@ class MainActivity : Activity() {
         return true
     }
 
+    /** 播放页方向由用户在控制层切换并记住；其余页面固定竖屏。 */
+    private var portraitPlayer: Boolean
+        get() = getSharedPreferences("phone-ui", MODE_PRIVATE).getBoolean("portraitPlayer", false)
+        set(value) = getSharedPreferences("phone-ui", MODE_PRIVATE).edit().putBoolean("portraitPlayer", value).apply()
+
+    private var screenOffEnabled: Boolean
+        get() = getSharedPreferences("phone-ui", MODE_PRIVATE).getBoolean("screenOffPlayback", true)
+        set(value) = getSharedPreferences("phone-ui", MODE_PRIVATE).edit().putBoolean("screenOffPlayback", value).apply()
+
+    /** 息屏后继续播放中：生命周期回调跳过暂停与释放，由前台服务保活。 */
+    private var screenOffPlayback = false
+
+    private fun playingLabel() = "${detail?.series?.title.orEmpty()} · 第 ${episodeIndex + 1} 集"
+
     private fun phoneOrientation(player: Boolean) {
         val want =
-            if (player) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            if (player && !portraitPlayer) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         if (requestedOrientation != want) requestedOrientation = want
     }
@@ -2606,7 +2629,7 @@ class MainActivity : Activity() {
             if (watched) "重新观看" else if (progress != null) "继续第 ${target.index + 1} 集" else "开始观看"
         root.removeAllViews()
         root.setBackgroundColor(TvStyle.background)
-        root.addView(
+        val view =
             PhoneDetail(
                 this,
                 data,
@@ -2639,10 +2662,35 @@ class MainActivity : Activity() {
                         )
                     saved
                 },
-            ),
-            FrameLayout.LayoutParams(-1, -1),
-        )
+                openSeason = { work ->
+                    if (work.upcoming) Toast.makeText(this, "「${work.season.ifBlank { work.series.title }}」待上线，暂不能播放", Toast.LENGTH_SHORT).show()
+                    else openDetail(work.series)
+                },
+            )
+        root.addView(view, FrameLayout.LayoutParams(-1, -1))
+        // 系列各季来自相关作品接口，单独在后台读取，失败时不显示该区块。
+        val ticket = generation
+        io.execute {
+            val rows =
+                runCatching {
+                        val related = repository.related(data.series.id)
+                        val self = RelatedWork(data.series, "", false)
+                        RelatedWorks.ordered(data.series, related + self).filter {
+                            it.series.id == data.series.id || it.seasonIndex > 0 || it.season.isNotBlank() ||
+                                RelatedWorks.sameSeries(data.series, it.series)
+                        }
+                    }
+                    .getOrNull()
+            main.post {
+                if (rows != null && generation == ticket && screen == "detail" && view.isAttachedToWindow)
+                    view.showSeasons(rows.map { if (it.series.id == data.series.id) it.copy(season = seasonLabel(data.series.title)) else it })
+            }
+        }
     }
+
+    private fun seasonLabel(title: String) =
+        Regex("第?([0-9零〇一二两三四五六七八九十百]+)季$").find(title.trim())?.value?.let { if (it.startsWith("第")) it else "第$it" } ?: "第一季"
+
 
     @Deprecated("TV remote back is handled through the activity")
     override fun onBackPressed() = goBack()
@@ -2656,7 +2704,10 @@ class MainActivity : Activity() {
         if (!library.isLoaded) return
         when (screen) {
             // 进出播放页时由本应用切换横竖屏；只需按新尺寸重排画面，不重新起播。
-            "player" -> playerView?.post { applyVideoRotation() }
+            "player" -> {
+                phoneOverlay?.arrange(newConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
+                playerView?.post { applyVideoRotation() }
+            }
             "detail" -> if (detail != null) showDetail()
             else -> showCatalog()
         }
@@ -2664,6 +2715,10 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (screenOffPlayback) {
+            screenOffPlayback = false
+            ScreenOffPlaybackService.stop(this)
+        }
         foreground = true
         social.foreground(true)
         main.removeCallbacks(tick)
@@ -2692,6 +2747,21 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
+        // 只在息屏时继续播放；按 Home 离开应用仍按原逻辑暂停。
+        if (
+            screen == "player" &&
+                screenOffEnabled &&
+                player?.playWhenReady == true &&
+                !playError &&
+                !(getSystemService(POWER_SERVICE) as android.os.PowerManager).isInteractive
+        ) {
+            screenOffPlayback = true
+            saveProgress()
+            library.flush()
+            ScreenOffPlaybackService.start(this, playingLabel())
+            super.onPause()
+            return
+        }
         stallGuard.suspendObservation()
         cancelNextSeason()
         social.foreground(false)
@@ -2713,6 +2783,11 @@ class MainActivity : Activity() {
 
     // 应用离开前台时暂停播放及后台活动，防止页面不可见时继续消耗资源。
     override fun onStop() {
+        if (screenOffPlayback) {
+            library.flush()
+            super.onStop()
+            return
+        }
         restoreStoppedPage = true
         generation++
         cancelWork()
@@ -2735,6 +2810,7 @@ class MainActivity : Activity() {
 
     // 页面销毁时释放播放器、请求和工作线程，避免资源继续持有旧 Activity。
     override fun onDestroy() {
+        ScreenOffPlaybackService.stop(this)
         phoneShell?.close()
         phoneShell = null
         generation++

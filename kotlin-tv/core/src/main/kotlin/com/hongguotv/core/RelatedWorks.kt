@@ -36,6 +36,12 @@ object RelatedWorks {
     private fun stem(title: String) = title.trim().replace(seasonSuffix, "")
         .replace(Regex("[\\p{P}\\p{Z}\\s]"), "")
 
+    /** 去掉「第N季」后缀与标点后剧名相同，视为同一系列。 */
+    fun sameSeries(a: Series, b: Series): Boolean {
+        val stem = stem(a.title)
+        return stem.isNotBlank() && stem == stem(b.title)
+    }
+
     fun ordered(current: Series, rows: List<RelatedWork>): List<RelatedWork> = rows.sortedWith(
         compareBy<RelatedWork> { if (stem(it.series.title) == stem(current.title)) 0 else 1 }
             .thenBy { stem(it.series.title) }

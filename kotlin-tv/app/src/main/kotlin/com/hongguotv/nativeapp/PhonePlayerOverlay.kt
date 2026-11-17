@@ -32,6 +32,7 @@ internal class PhonePlayerOverlay(
     private val comments: (TextView) -> Unit,
     private val favorite: () -> Boolean,
     private val settings: (TextView) -> Unit,
+    private val rotate: () -> Unit,
 ) : FrameLayout(context) {
     private val title = text("", 16f, bold = true).apply {
         maxLines = 1
@@ -60,6 +61,20 @@ internal class PhonePlayerOverlay(
     private val speedButton = action("倍速") { speed(it) }
     private val qualityButton = action("清晰度") { quality(it) }
     private val favoriteButton = action("收藏") { it.text = favoriteLabel(favorite()) }
+    private val rotateButton = text("", 13f).apply {
+        setPadding(dp(12), dp(6), dp(12), dp(6))
+        background = GradientDrawable().apply {
+            cornerRadius = dp(14).toFloat()
+            setStroke(dp(1), Color.argb(170, 255, 255, 255))
+        }
+        setOnClickListener {
+            rotate()
+            interacted()
+        }
+    }
+    private val actions = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+    private lateinit var actionButtons: List<TextView>
+    private var portrait: Boolean? = null
     private var duration = 0L
     private var dragging = false
     val showing get() = visibility == VISIBLE
@@ -83,6 +98,7 @@ internal class PhonePlayerOverlay(
             setOnClickListener { back() }
         })
         top.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+        top.addView(rotateButton, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(10) })
         addView(top, LayoutParams(-1, -2, Gravity.TOP))
 
         addView(playButton, LayoutParams(dp(64), dp(64), Gravity.CENTER))
@@ -100,8 +116,7 @@ internal class PhonePlayerOverlay(
         progress.addView(bar, LinearLayout.LayoutParams(0, -2, 1f))
         progress.addView(total)
         bottom.addView(progress)
-        val actions = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
-        listOf(
+        actionButtons = listOf(
             previousButton,
             nextButton,
             action("选集") { episodes(it) },
@@ -111,7 +126,8 @@ internal class PhonePlayerOverlay(
             action("评论") { comments(it) },
             favoriteButton,
             action("更多") { settings(it) },
-        ).forEach { actions.addView(it, LinearLayout.LayoutParams(0, -2, 1f)) }
+        )
+        arrange(resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT)
         bottom.addView(actions)
         addView(bottom, LayoutParams(-1, -2, Gravity.BOTTOM))
 
@@ -133,6 +149,24 @@ internal class PhonePlayerOverlay(
                 interacted()
             }
         })
+    }
+
+    /** 横屏一行放下全部按钮；竖屏宽度不够，分两行。 */
+    fun arrange(vertical: Boolean) {
+        rotateButton.text = if (vertical) "横屏" else "竖屏"
+        rotateButton.contentDescription = if (vertical) "切换为横屏播放" else "切换为竖屏播放"
+        if (portrait == vertical) return
+        portrait = vertical
+        actions.removeAllViews()
+        actionButtons.forEach { (it.parent as? LinearLayout)?.removeView(it) }
+        val rows = if (vertical) actionButtons.chunked(5) else listOf(actionButtons)
+        val width = rows.maxOf { it.size }
+        rows.forEach { group ->
+            val row = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
+            group.forEach { row.addView(it, LinearLayout.LayoutParams(0, -2, 1f)) }
+            repeat(width - group.size) { row.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f)) }
+            actions.addView(row)
+        }
     }
 
     fun update(
