@@ -215,7 +215,7 @@ internal class PhoneCatalog(
         input.setSelection(keyword.length)
         input.clearFocus()
         hideKeyboard()
-        library.rememberSearch(keyword, library.contentType)
+        library.rememberSearch(keyword, ContentType.COMIC)
         search?.run(keyword)
     }
 
@@ -364,13 +364,11 @@ internal class PhoneCatalog(
     }
 
     private inner class HomePage : PagedPage() {
-        private val types = LinearLayout(activity).apply { orientation = VERTICAL }
         private val resumeBlock = LinearLayout(activity).apply { orientation = VERTICAL }
         private var page = 0
 
         init {
             val header = LinearLayout(activity).apply { orientation = VERTICAL }
-            header.addView(types)
             header.addView(resumeBlock)
             header.addView(heading("热门推荐"))
             grid.header(header)
@@ -378,8 +376,7 @@ internal class PhoneCatalog(
         }
 
         override fun restart() {
-            renderTypes()
-            val type = library.contentType
+            val type = ContentType.COMIC
             hasMore = true
             page = 0
             fetch(true, { repository.home(1, type) }, "home-${type.storedValue}") { result ->
@@ -391,29 +388,13 @@ internal class PhoneCatalog(
 
         override fun more() {
             if (loading || !hasMore || page == 0) return
-            val type = library.contentType
+            val type = ContentType.COMIC
             val next = page + 1
             fetch(false, { repository.home(next, type) }) { result ->
                 page = next
                 hasMore = result.hasMore
                 grid.items = (grid.items + result.items).distinctBy { it.id }
             }
-        }
-
-        private fun renderTypes() {
-            types.removeAllViews()
-            types.addView(
-                strip(
-                    listOf(ContentType.SHORT, ContentType.COMIC).map { type ->
-                        chip(type.label, library.contentType == type) {
-                            if (library.contentType != type) {
-                                library.contentType = type
-                                restart()
-                            }
-                        }
-                    }
-                )
-            )
         }
 
         override fun shown() {

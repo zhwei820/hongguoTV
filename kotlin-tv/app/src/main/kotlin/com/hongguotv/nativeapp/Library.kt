@@ -295,15 +295,6 @@ class Library(context: Context) {
             }
         }
 
-    var contentType: ContentType
-        get() = state().settings.type
-        set(value) {
-            if (value != contentType) {
-                state().settings = state().settings.copy(type = value)
-                put("contentType", value.storedValue)
-            }
-        }
-
     var playbackSpeed: Float
         get() = state().settings.speed
         set(value) {
