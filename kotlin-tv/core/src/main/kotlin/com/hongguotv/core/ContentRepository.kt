@@ -61,6 +61,8 @@ data class Series(
     val description: String = "",
     val badge: String = "",
     val tags: String = "",
+    /** 列表数据带演员表（celebrities 非空）；网页分类页里只有真人剧带，漫剧、AI 剧没有。 */
+    val hasCast: Boolean = false,
 ) {
     fun toJson() =
         JSONObject()
@@ -70,6 +72,7 @@ data class Series(
             .put("description", description)
             .put("badge", badge)
             .put("tags", tags)
+            .put("hasCast", hasCast)
 
     companion object {
         fun fromJson(o: JSONObject) =
@@ -80,6 +83,7 @@ data class Series(
                 o.str("description"),
                 o.str("badge"),
                 o.str("tags"),
+                o.optBoolean("hasCast", false),
             )
     }
 }
@@ -439,6 +443,7 @@ constructor(
             (0 until minOf(tags.length(), 5)).joinToString(" · ") {
                 tags.optJSONObject(it)?.str("name") ?: tags.optString(it)
             },
+            (o.optJSONArray("celebrities") ?: item.optJSONArray("celebrities"))?.length()?.let { it > 0 } ?: false,
         )
     }
 
