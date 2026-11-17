@@ -36,6 +36,10 @@ object RelatedWorks {
     private fun stem(title: String) = title.trim().replace(seasonSuffix, "")
         .replace(Regex("[\\p{P}\\p{Z}\\s]"), "")
 
+    /** 剧名末尾「第N季」的序号（支持中文数字）；没有后缀返回 null。 */
+    fun seasonOf(title: String): Int? =
+        seasonSuffix.find(title.trim())?.groupValues?.get(1)?.let(::seasonNumber)
+
     /** 去掉「第N季」后缀与标点后剧名相同，视为同一系列。 */
     fun sameSeries(a: Series, b: Series): Boolean {
         val stem = stem(a.title)

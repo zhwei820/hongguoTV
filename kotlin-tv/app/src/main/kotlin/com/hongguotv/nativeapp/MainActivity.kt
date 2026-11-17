@@ -109,6 +109,7 @@ class MainActivity : Activity() {
     private var prefetchAttemptAt = 0L
     private var prefetchAttempts = 0
     private var phoneShell: PhoneCatalog? = null
+    private val seasonCache by lazy { SeasonCache(this) }
     private var phoneOverlay: PhonePlayerOverlay? = null
     private lateinit var library: Library
     private lateinit var tvTools: TvTools
@@ -2668,29 +2669,35 @@ class MainActivity : Activity() {
                 },
             )
         root.addView(view, FrameLayout.LayoutParams(-1, -1))
-        // 系列各季来自相关作品接口，单独在后台读取，失败时不显示该区块。
+        // 系列各季来自相关作品接口：先显示本机缓存，后台刷新后有变化再替换；失败时保留缓存或不显示。
+        val cached = seasonCache.get(data.series.id)
+        cached?.let { view.showSeasons(it) }
         val ticket = generation
         io.execute {
             val rows =
                 runCatching {
                         val related = repository.related(data.series.id)
                         val self = RelatedWork(data.series, "", false)
-                        RelatedWorks.ordered(data.series, related + self).filter {
-                            it.series.id == data.series.id || it.seasonIndex > 0 || it.season.isNotBlank() ||
-                                RelatedWorks.sameSeries(data.series, it.series)
-                        }
+                        RelatedWorks.ordered(data.series, related + self)
+                            .filter {
+                                it.series.id == data.series.id || it.seasonIndex > 0 || it.season.isNotBlank() ||
+                                    RelatedWorks.sameSeries(data.series, it.series)
+                            }
+                            .map { if (it.series.id == data.series.id) it.copy(season = seasonLabel(data.series.title)) else it }
                     }
                     .getOrNull()
             main.post {
-                if (rows != null && generation == ticket && screen == "detail" && view.isAttachedToWindow)
-                    view.showSeasons(rows.map { if (it.series.id == data.series.id) it.copy(season = seasonLabel(data.series.title)) else it })
+                if (rows == null) return@post
+                seasonCache.put(data.series.id, rows)
+                // 缓存不存简介，比较时同样去掉。
+                val changed = rows.map { it.copy(series = it.series.copy(description = "")) } != cached
+                if (generation == ticket && screen == "detail" && view.isAttachedToWindow && changed)
+                    view.showSeasons(rows)
             }
         }
     }
 
-    private fun seasonLabel(title: String) =
-        Regex("第?([0-9零〇一二两三四五六七八九十百]+)季$").find(title.trim())?.value?.let { if (it.startsWith("第")) it else "第$it" } ?: "第一季"
-
+    private fun seasonLabel(title: String) = "第${RelatedWorks.seasonOf(title) ?: 1}季"
 
     @Deprecated("TV remote back is handled through the activity")
     override fun onBackPressed() = goBack()

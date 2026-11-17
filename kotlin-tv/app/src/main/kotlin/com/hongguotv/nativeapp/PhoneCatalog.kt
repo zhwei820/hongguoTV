@@ -470,7 +470,7 @@ internal class PhoneCatalog(
     private inner class DiscoverPage : PagedPage() {
         private val filters = LinearLayout(activity).apply { orientation = VERTICAL }
         private var selection = DiscoverySelection()
-        private var groups = emptyList<DiscoveryGroup>()
+        private var groups = cache.discoveryGroups()
         private var next: DiscoveryCursor? = null
 
         init {
@@ -486,7 +486,10 @@ internal class PhoneCatalog(
                 grid.items = result.items
                 next = result.next
                 hasMore = next != null
-                if (result.groups.isNotEmpty()) groups = result.groups
+                if (result.groups.isNotEmpty() && result.groups != groups) {
+                    groups = result.groups
+                    if (selection.values.isEmpty()) cache.putDiscoveryGroups(groups)
+                }
                 renderFilters()
             }
         }
