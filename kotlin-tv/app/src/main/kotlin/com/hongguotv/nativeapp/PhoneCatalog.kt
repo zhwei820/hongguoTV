@@ -469,7 +469,9 @@ internal class PhoneCatalog(
 
     private inner class DiscoverPage : PagedPage() {
         private val filters = LinearLayout(activity).apply { orientation = VERTICAL }
-        private var selection = DiscoverySelection()
+        // 不提供真人剧：接口结果里没有可区分真人剧的字段，「全部类型」会混入真人剧，所以类型只留漫剧 / AI 剧，默认漫剧。
+        private val initial = DiscoverySelection(mapOf("genre" to "comic_series"))
+        private var selection = initial
         private var groups = cache.discoveryGroups()
         private var next: DiscoveryCursor? = null
 
@@ -488,7 +490,7 @@ internal class PhoneCatalog(
                 hasMore = next != null
                 if (result.groups.isNotEmpty() && result.groups != groups) {
                     groups = result.groups
-                    if (selection.values.isEmpty()) cache.putDiscoveryGroups(groups)
+                    if (selection == initial) cache.putDiscoveryGroups(groups)
                 }
                 renderFilters()
             }
@@ -511,8 +513,9 @@ internal class PhoneCatalog(
             groups.forEach { group ->
                 val chosen = selection.values[group.type].orEmpty()
                 val options =
-                    listOf(DiscoveryFilter("", if (group.type == "genre") "全部类型" else "全部")) +
-                        group.options
+                    if (group.type == "genre")
+                        group.options.filter { it.id != "real_series" && it.label != "真人剧" }
+                    else listOf(DiscoveryFilter("", "全部")) + group.options
                 val row = LinearLayout(activity).apply { gravity = Gravity.CENTER_VERTICAL }
                 if (group.type != "genre")
                     row.addView(
@@ -598,7 +601,7 @@ internal class PhoneCatalog(
             boards.removeAllViews()
             boards.addView(
                 strip(
-                    RankBoard.entries.map { entry ->
+                    RankBoard.entries.filter { it != RankBoard.REAL }.map { entry ->
                         chip(entry.label, entry == board) {
                             if (entry != board) {
                                 board = entry

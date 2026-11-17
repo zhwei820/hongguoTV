@@ -18,7 +18,7 @@ internal class GridCache(context: Context) {
     private companion object {
         const val MAX_KEYS = 24
         const val ORDER = "__order"
-        const val GROUPS = "__discoveryGroups"
+        const val GROUPS = "__discoveryGroups.comic"
     }
 
     private val prefs = context.getSharedPreferences("grid-cache", Context.MODE_PRIVATE)
