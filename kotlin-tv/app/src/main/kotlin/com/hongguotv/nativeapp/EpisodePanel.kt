@@ -16,7 +16,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 
-/** 播放页右侧选集抽屉：按段切换、点选即播；点抽屉外或关闭按钮收起。 */
+/** 播放页选集面板：横屏为右侧抽屉，竖屏为底部面板；按段切换、点选即播；点面板外或关闭按钮收起。 */
 class EpisodePanel(
     private val activity: Activity,
     private val count: Int,
@@ -45,6 +45,8 @@ class EpisodePanel(
             addView(grid)
         }
     private var range = current / RANGE
+    private val portrait =
+        activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
 
     private fun dp(n: Number) = (n.toFloat() * activity.resources.displayMetrics.density).toInt()
 
@@ -65,12 +67,15 @@ class EpisodePanel(
         dialog.show()
         dialog.window?.apply {
             setBackgroundDrawableResource(android.R.color.transparent)
-            setGravity(Gravity.END or Gravity.TOP)
             setDimAmount(.35f)
-            setLayout(
-                minOf(dp(400), (activity.resources.displayMetrics.widthPixels * .48f).toInt()),
-                ViewGroup.LayoutParams.MATCH_PARENT,
-            )
+            val metrics = activity.resources.displayMetrics
+            if (portrait) {
+                setGravity(Gravity.BOTTOM)
+                setLayout(ViewGroup.LayoutParams.MATCH_PARENT, (metrics.heightPixels * .6f).toInt())
+            } else {
+                setGravity(Gravity.END or Gravity.TOP)
+                setLayout(minOf(dp(400), (metrics.widthPixels * .48f).toInt()), ViewGroup.LayoutParams.MATCH_PARENT)
+            }
         }
     }
 
@@ -80,18 +85,23 @@ class EpisodePanel(
         val panel =
             LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(16), dp(12), dp(12), dp(8))
+                setPadding(dp(16), dp(12), dp(if (portrait) 16 else 12), dp(8))
                 background =
                     GradientDrawable().apply {
                         setColor(Color.argb(242, Color.red(TvStyle.background), Color.green(TvStyle.background), Color.blue(TvStyle.background)))
                         val r = dp(14).toFloat()
-                        cornerRadii = floatArrayOf(r, r, 0f, 0f, 0f, 0f, r, r)
+                        cornerRadii =
+                            if (portrait) floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+                            else floatArrayOf(r, r, 0f, 0f, 0f, 0f, r, r)
                     }
             }
         val header = LinearLayout(activity).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(text("选集", 18f, bold = true))
         header.addView(
-            text("  共 $count 集 · 正在看第 ${current + 1} 集", 13f, TvStyle.muted),
+            text("  共 $count 集 · 正在看第 ${current + 1} 集", 13f, TvStyle.muted).apply {
+                setSingleLine(true)
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            },
             LinearLayout.LayoutParams(0, -2, 1f),
         )
         header.addView(
@@ -158,7 +168,10 @@ class EpisodePanel(
             }
             cell.addView(
                 text(if (playing) "▶ ${index + 1}" else "${index + 1}", 14f, if (playing) Color.WHITE else TvStyle.text, playing)
-                    .apply { gravity = Gravity.CENTER },
+                    .apply {
+                        gravity = Gravity.CENTER
+                        setSingleLine(true)
+                    },
                 FrameLayout.LayoutParams(-1, -1),
             )
             if (index == lastWatched && !playing)
