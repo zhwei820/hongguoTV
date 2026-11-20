@@ -977,12 +977,35 @@ constructor(
     }
 
     /** v5 model requests use the same anonymous registration across foreground and prefetch. */
-    fun streamLadderWithCompatibility(id: String, metadataAhead: List<String> = emptyList(), speculative: Boolean = false): StreamLadder =
-        RequestScope.withDeadline(System.nanoTime() + TimeUnit.SECONDS.toNanos(if (speculative) 2 else 8)) {
-            val profile = if (speculative) playbackSession.existing()
-                ?: throw IOException("播放设备尚未就绪") else playbackSession.profile(http)
-            MobilePlayback.ladder(id, profile.values, http, MobilePlayback.signer, clock())
+    fun streamLadderWithCompatibility(id: String, metadataAhead: List<String> = emptyList(), speculative: Boolean = false): StreamLadder {
+        var profile: PlaybackDeviceSession.Profile? = null
+        try {
+            return RequestScope.withDeadline(System.nanoTime() + TimeUnit.SECONDS.toNanos(if (speculative) 2 else 8)) {
+                val current = if (speculative) playbackSession.existing()
+                    ?: throw IOException("播放设备尚未就绪") else playbackSession.profile(http)
+                profile = current
+                MobilePlayback.ladder(id, current.values, http, MobilePlayback.signer, clock())
+            }
+        } catch (error: IOException) {
+            RequestScope.ensureActive()
+            // 空正文 / 401 / 403 多是匿名设备身份被风控或过期；身份是进程级共享的，不换会一直失败。
+            // 只在前台换一次身份重试，预取不注册设备。
+            val identityRejected = error is EmptyPlaybackResponseException ||
+                error is PlaybackSourceException && error.reason == PlaybackSourceException.Reason.HTTP_REJECTED &&
+                error.upstreamCode in listOf(401, 403)
+            val failed = profile
+            if (speculative || !identityRejected || failed == null) throw error
+            return RequestScope.withDeadline(System.nanoTime() + TimeUnit.SECONDS.toNanos(8)) {
+                if (!playbackSession.rotate(http, failed)) throw error
+                try {
+                    MobilePlayback.ladder(id, playbackSession.profile(http).values, http, MobilePlayback.signer, clock())
+                } catch (again: IOException) {
+                    again.addSuppressed(error)
+                    throw again
+                }
+            }
         }
+    }
 
     /** Retained legacy transport for compatibility regression coverage. */
     internal fun legacyStreamLadderWithCompatibility(id: String, metadataAhead: List<String> = emptyList(), speculative: Boolean = false): StreamLadder {
