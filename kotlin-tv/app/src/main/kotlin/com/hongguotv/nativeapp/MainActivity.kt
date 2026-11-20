@@ -24,7 +24,6 @@ import androidx.media3.common.*
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
-import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import com.hongguotv.core.*
 import java.util.concurrent.Executors
@@ -258,9 +257,17 @@ class MainActivity : Activity() {
                     maybePrepareSeason()
                     updateSeasonBanner()
                     val now = android.os.SystemClock.elapsedRealtime()
-                    if (android.util.Log.isLoggable("HGPlayback", android.util.Log.DEBUG) && now - lastPlaybackDiagnosticAt >= 5000) {
+                    if (android.util.Log.isLoggable("HGPlayback", android.util.Log.DEBUG) && now - lastPlaybackDiagnosticAt >= 1000) {
                         player?.let { p ->
-                            android.util.Log.d("HGPlayback", "state=${p.playbackState} playing=${p.isPlaying} suppressed=${p.playbackSuppressionReason} position=${p.currentPosition} buffered=${p.totalBufferedDuration} audio=${p.audioDecoderCounters?.renderedOutputBufferCount} audioQueued=${p.audioDecoderCounters?.queuedInputBufferCount} audioMime=${p.audioFormat?.sampleMimeType} audioRate=${p.audioFormat?.sampleRate} audioChannels=${p.audioFormat?.channelCount} video=${p.videoDecoderCounters?.renderedOutputBufferCount}")
+                            val video = p.videoDecoderCounters?.also { it.ensureUpdated() }
+                            val audio = p.audioDecoderCounters?.also { it.ensureUpdated() }
+                            android.util.Log.d("HGPlayback",
+                                "tMs=$now dropped=${video?.droppedBufferCount} skipped=${video?.skippedOutputBufferCount}" +
+                                    " size=${p.videoSize.width}x${p.videoSize.height} state=${p.playbackState} playing=${p.isPlaying}" +
+                                    " suppressed=${p.playbackSuppressionReason} position=${p.currentPosition} buffered=${p.totalBufferedDuration}" +
+                                    " audio=${audio?.renderedOutputBufferCount} audioQueued=${audio?.queuedInputBufferCount}" +
+                                    " audioMime=${p.audioFormat?.sampleMimeType} audioRate=${p.audioFormat?.sampleRate}" +
+                                    " audioChannels=${p.audioFormat?.channelCount} video=${video?.renderedOutputBufferCount}")
                         }
                         lastPlaybackDiagnosticAt = now
                     }
@@ -1169,7 +1176,7 @@ class MainActivity : Activity() {
             .build()
 
     private fun episodeSource(remote: RemoteVideo, id: String) =
-        ProgressiveMediaSource.Factory { VideoDataSource(remote) }
+        playbackSourceFactory { VideoDataSource(remote) }
             .createMediaSource(
                 MediaItem.Builder()
                     .setMediaId(id)
@@ -1348,9 +1355,8 @@ class MainActivity : Activity() {
         }
 
     /**
-     * Detects growing audio/video drift (video frame processing offset stays signed) and re-seeks
-     * to the current position once per cooldown window: a seek flushes the audio processors and
-     * clock basis, which users confirmed restores sync; a pause does not.
+     * Requests recovery only for a batch of persistently late video frames. Media3 reports
+     * processing offsets when its renderer stops, so this does not measure lip sync directly.
      */
     private fun playbackDriftListener(p: ExoPlayer): AnalyticsListener {
         val guard = PlaybackSyncGuard()
@@ -1414,7 +1420,12 @@ class MainActivity : Activity() {
             ?: run {
                 val load =
                     DefaultLoadControl.Builder()
-                        .setBufferDurationsMs(15000, 30000, 1000, 2000)
+                        .setBufferDurationsMs(
+                            if (Build.VERSION.SDK_INT <= 22) 50_000 else 15_000,
+                            if (Build.VERSION.SDK_INT <= 22) 60_000 else 30_000,
+                            1000,
+                            2000,
+                        )
                         .setTargetBufferBytes(12 * 1024 * 1024)
                         .build()
                 val renderers =
@@ -1433,6 +1444,7 @@ class MainActivity : Activity() {
                     // 息屏播放时保持 CPU 与 Wi-Fi 唤醒，否则缓冲会在锁屏后停住。
                     it.setWakeMode(C.WAKE_MODE_NETWORK)
                     it.addAnalyticsListener(playbackDriftListener(it))
+                    it.addAnalyticsListener(PlaybackDiagnostics("player"))
                 }
             }
 
